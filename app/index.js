@@ -1,13 +1,37 @@
-/**
+/*
  * Primary file for the API 
  */
 
-// Dependencies
 const http = require('http');
+const https = require('https');
 const url = require('url');
 const StringDecoder = require('string_decoder').StringDecoder;
+const config = require('./config');
+const fs = require('fs');
 
-const server = http.createServer((req, res) => {
+// HTTP server
+const httpServer = http.createServer((req, res) => {
+  unifiedServer(req, res);
+});
+
+httpServer.listen(config.httpPort, () => {
+  console.log(`The server is listening on port ${config.httpPort}`);
+});
+
+// HTTPS server
+const httpsServerOptions = {
+  'key': fs.readFileSync('./https/key.pem'),
+  'cert': fs.readFileSync('./https/cert.pem')
+};
+const httpsServer = https.createServer(httpsServerOptions, (req, res) => {
+  unifiedServer(req, res);
+});
+
+httpsServer.listen(config.httpsPort, () => {
+  console.log(`The server is listening on port ${config.httpsPort}`);
+});
+
+const unifiedServer = (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const path = parsedUrl.pathname;
   const trimmedPath = path.replace(/\/+|\/+$/g, '');
@@ -21,15 +45,50 @@ const server = http.createServer((req, res) => {
     buffer += decoder.write(data);
   });
 
-  res.end(' *** Hello World\n');
+  req.on('end', () => {
+    buffer += decoder.end();
 
-  console.log(`* Request received on path ${trimmedPath}.`);
-  console.log(`** Request method is ${method}.`);
-  console.log(`*** Request query string params is ${JSON.stringify(queryStringObject)}.`);
-  console.log(`**** Request headers is ${headers}.`);
-  console.log(`***** Request payload is ${buffer}.`);
-});
+    const chosenHandler = typeof(router[trimmedPath]) !== 'undefined' ? router[trimmedPath] : handlers.notFound;
 
-server.listen(3000, () => {
-  console.log(`The server is listening on port 3000 now`);
-})
+    const data = {
+      'trimmedPath' : trimmedPath,
+      'queryStringObject' : queryStringObject,
+      'method' : method,
+      'headers' : headers,
+      'payload' : buffer
+    };
+
+    chosenHandler(data, (statusCode, payload) => {
+      statusCode = typeof(statusCode) == 'number' ? statusCode : 200;
+      payload = typeof(payload) == 'object'? payload : {};
+
+      console.log('payload', payload);
+
+      const payloadString = JSON.stringify(payload);
+      res.setHeader('Content-Type','application/json');
+      res.writeHead(statusCode);
+      res.end(payloadString);
+
+      console.log(`* Request received on path ${trimmedPath}.`);
+      console.log(`** Request method is ${method}.`);
+      console.log(`*** Request query string params is ${JSON.stringify(queryStringObject)}.`);
+      console.log(`**** Request headers is ${JSON.stringify(headers)}.`);
+      console.log(`***** Request payload is ${buffer}.`);
+      console.log(`****** Returning this response is ${statusCode}, ${payloadString}`);      
+    });
+  });
+};
+
+let handlers = {};
+
+handlers.ping = (data, callback) => {
+  callback(200);
+}
+
+handlers.notFound = (data, callback) => {
+  callback(404);
+};
+
+let router = {
+  'ping': handlers.ping
+}
