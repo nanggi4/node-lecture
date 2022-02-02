@@ -8,6 +8,20 @@ const url = require('url');
 const StringDecoder = require('string_decoder').StringDecoder;
 const config = require('./config');
 const fs = require('fs');
+const _data = require('./lib/data');
+
+// ! @TODO delete this
+// _data.create('test', 'newFile', {'foo': 'bar'}, (err) => {
+//   console.log('this war the error', err);
+// });
+
+// _data.read('test', 'newFile', (err, data) => {
+//   console.log('this war the error', err, 'and this was the data', data);
+// });
+
+_data.update('test', 'newFile', {'fizz': 'buzz'}, (err) => {
+  console.log('this war the error', err);
+});
 
 // HTTP server
 const httpServer = http.createServer((req, res) => {
